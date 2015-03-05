@@ -51,8 +51,8 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
     private static Twitter twitter;
     private static RequestToken requestToken;
     public static final int rCode = 33;
-    public static final int MAX_TWEETS = 5;
-    public static final int TO_DELETE = 4;
+    public static final int MAX_TWEETS = 100;
+    public static final int TO_DELETE = 10;
 
     private SharedPreferences mSharedPreferences;
     public static final String PREF_KEY_LOGIN = "Pref_Login" ;
@@ -96,8 +96,8 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
 
         if (location != null) {
 //            onLocationChanged(location);
-//            this.lati = location.getLatitude();
-//            this.longi = location.getLongitude();
+            this.lati = location.getLatitude();
+            this.longi = location.getLongitude();
         }
 
         setUpMapIfNeeded();
