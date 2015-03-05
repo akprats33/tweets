@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.provider.Settings;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
 import android.widget.Toast;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -25,8 +26,15 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import twitter4j.Twitter;
 import twitter4j.TwitterException;
@@ -43,6 +51,8 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
     private static Twitter twitter;
     private static RequestToken requestToken;
     public static final int rCode = 33;
+    public static final int MAX_TWEETS = 5;
+    public static final int TO_DELETE = 4;
 
     private SharedPreferences mSharedPreferences;
     public static final String PREF_KEY_LOGIN = "Pref_Login" ;
@@ -62,6 +72,7 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
     private HashMap<Long, Marker> tweetMarkers;
     public Handler handler = new Handler();
     private Marker yourMarker;
+    private Marker tMarker;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,8 +96,8 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
 
         if (location != null) {
 //            onLocationChanged(location);
-            this.lati = location.getLatitude();
-            this.longi = location.getLongitude();
+//            this.lati = location.getLatitude();
+//            this.longi = location.getLongitude();
         }
 
         setUpMapIfNeeded();
@@ -108,14 +119,22 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
         }
     }
 
+//    @Override
+//    public boolean onCreateOptionsMenu(Menu menu) {
+//        getMenuInflater().inflate(R.menu.menu1, menu);
+//        return super.onCreateOptionsMenu(menu);
+//    }
+
     public void updateTweetsList(Searches newTweets){
         boolean changed = false;
         for(Search s : newTweets) {
             if(!tweets.containsKey(s.getId())){
                 changed = true;
-                if(tweets.size() >= 100) {
+                if(tweets.size() >= MAX_TWEETS) {
                     Log.e("Deleting---","removing some tweet");
-                    removeOldest();
+
+                    Thread removal = new Thread(new removeOldest());
+                    removal.start();
                 }
 
                 Tweet tweetFromSearch = new Tweet();
@@ -134,23 +153,63 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
         }
     }
 
-    public void removeOldest() {
-        long min = 1<<30;
-        long minId = -1;
-        for (Map.Entry<Long, Tweet> entry : tweets.entrySet()) {
-            Tweet someTweet = entry.getValue();
-            long creation = someTweet.creationTime;
-            if(creation < min) {
-                min = creation;
-                minId = entry.getKey();
-            }
-        }
+    private static HashMap sortByValues(HashMap map) {
 
-        if( minId != -1) {
-            tweets.remove(minId);
-            Thread removal = new Thread(
-                    new tweetRemoval(minId));
-            removal.start();
+        List list = new LinkedList(map.entrySet());
+        // Defined Custom Comparator for tweets
+
+        Collections.sort(list, new Comparator() {
+            public int compare(Object tweet1, Object tweet2) {
+
+                long creation1 = (long) ((Tweet) (((Map.Entry) tweet1 ).getValue())).creationTime;
+                long creation2 = (long) ((Tweet) (((Map.Entry) tweet2 ).getValue())).creationTime;
+                return (int)(creation1 - creation2);
+            }
+        });
+
+        HashMap sortedHashMap = new LinkedHashMap();
+        for (Iterator it = list.iterator(); it.hasNext();) {
+            Map.Entry entry = (Map.Entry) it.next();
+            sortedHashMap.put(entry.getKey(), entry.getValue());
+        }
+        return sortedHashMap;
+    }
+
+    public class removeOldest implements  Runnable{
+
+        @Override
+        public void run() {
+            Map<Long, Tweet> map = sortByValues(tweets);
+
+            int count = 0;
+            for (Map.Entry<Long, Tweet> entry : map.entrySet()) {
+                long tweetID = entry.getKey();
+
+                if( tweetMarkers.containsKey(tweetID) ) {
+                    if(mMap != null) {
+                        // remove the tweet from list of tweets
+                        tweets.remove(tweetID);
+                        // get the marker corresponding to the removed tweet
+                        Log.e("Removing marker before",  ""+ tweetMarkers.size());
+                        // remove the marker from map of markers
+                        final Marker removed = tweetMarkers.remove(tweetID);
+                        Log.e("Removing marker after",  ""+ tweetMarkers.size());
+
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                if(removed != null)
+                                    removed.remove();
+                            }
+                        });
+                    }
+                }
+                else {
+                    Log.e("Tweet deletion111" , "Not found");
+                }
+                if(++ count >= TO_DELETE)
+                    break;
+            }
         }
     }
 
@@ -166,9 +225,9 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
             Tweet clicked = tweets.get(id);
 
             builder.setMessage(clicked.data.getId() + "\n" +
-                            clicked.data.getText() + "\n" +
-                            clicked.data.getSource() + "\n" +
-                            clicked.data.getDateCreated());
+                    clicked.data.getText() + "\n" +
+                    clicked.data.getSource() + "\n" +
+                    clicked.data.getDateCreated());
 
             builder.setNegativeButton("Close", new DialogInterface.OnClickListener()
             {
@@ -182,33 +241,6 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
         }
         return true;
     }
-
-    /**
-     * remove tweet marker from the map
-     */
-    class tweetRemoval implements  Runnable {
-
-        long tweetID;
-        public tweetRemoval(long id) {
-            this.tweetID = id;
-        }
-
-        @Override
-        public void run() {
-            if(tweetMarkers.containsKey(tweetID)) {
-                if(mMap != null) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            tweetMarkers.get(tweetID).remove();
-                            tweetMarkers.remove(tweetID);
-                        }
-                    });
-                }
-            }
-        }
-    }
-
     /**
      * add new tweet's marker
      */
@@ -233,7 +265,7 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
                             double tLongitude = newTweet.data.getGeo().getPoints().get(1);
                             String title = newTweet.data.getId() + "";
 
-                            Marker tMarker = mMap.addMarker(
+                            tMarker = mMap.addMarker(
                                     new MarkerOptions().
                                             position(
                                                     new LatLng(tLatitude, tLongitude)).
@@ -363,6 +395,7 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
 
                 try {
                     requestToken = twitter.getOAuthRequestToken();
+                    Log.e("Authenticating token",requestToken + "");
 
                     Intent loginIntent = new Intent(Intent.ACTION_VIEW, Uri
                             .parse(requestToken.getAuthenticationURL()));
