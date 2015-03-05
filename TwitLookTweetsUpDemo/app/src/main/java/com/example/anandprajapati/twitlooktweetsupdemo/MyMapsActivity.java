@@ -126,16 +126,9 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
 //    }
 
     public void updateTweetsList(Searches newTweets){
-        boolean changed = false;
-        for(Search s : newTweets) {
-            if(!tweets.containsKey(s.getId())){
-                changed = true;
-                if(tweets.size() >= MAX_TWEETS) {
-                    Log.e("Deleting---","removing some tweet");
 
-                    Thread removal = new Thread(new removeOldest());
-                    removal.start();
-                }
+          for(Search s : newTweets) {
+            if(!tweets.containsKey(s.getId())){
 
                 Tweet tweetFromSearch = new Tweet();
                 tweetFromSearch.data = s;
@@ -150,6 +143,12 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
                         new tweetAdd(tweetFromSearch));
                 addition.start();
             }
+        }
+        if(tweets.size() >= MAX_TWEETS) {
+            Log.e("Deleting---","removing some tweet");
+
+            Thread removal = new Thread(new removeOldest());
+            removal.start();
         }
     }
 
@@ -431,7 +430,7 @@ public class MyMapsActivity extends Activity implements GoogleMap.OnMarkerClickL
                                 Log.e("!!!!!!!!!!!!!!", "searching for tweets" + running);
                                 finder.execute(lati + "", longi + "");
 //                              Toast.makeText(MyMapsActivity.this,"lati :" +lati , Toast.LENGTH_SHORT).show();
-                                Thread.sleep(10000);
+                                Thread.sleep(5000);
                             } catch (InterruptedException ie) {
                                 ie.printStackTrace();
                             }
