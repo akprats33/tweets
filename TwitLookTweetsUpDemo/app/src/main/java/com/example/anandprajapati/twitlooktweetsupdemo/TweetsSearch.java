@@ -32,7 +32,7 @@ import java.util.ArrayList;
 public class TweetsSearch extends AsyncTask<String, Void, String> {
     final static String TwitterTokenURL = "https://api.twitter.com/oauth2/token";
     final static String TwitterSearchURL = "https://api.twitter.com/1.1/search/tweets.json?q=";
-    final static int distanceInMiles = 10;
+    final static int distanceInMiles = 1;
     private MyMapsActivity callingActivity;
 
     public TweetsSearch(MyMapsActivity ac) {
